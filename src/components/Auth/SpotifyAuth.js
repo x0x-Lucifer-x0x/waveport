@@ -1,7 +1,7 @@
 // spotifyAuth.js (helper functions for PKCE)
 
-const clientId = 'YOUR_SPOTIFY_CLIENT_ID';
-const redirectUri = window.location.origin + '/spotify-callback'; // configure this in your Spotify dev console
+const clientId = process.env.REACT_APP_SPOTIFY_CLIENT_ID;
+const redirectUri = process.env.REACT_APP_REDIRECT_URI || (window.location.origin + '/spotify-callback'); // configure this in your Spotify dev console
 
 const scopes = [
   'playlist-read-private',
