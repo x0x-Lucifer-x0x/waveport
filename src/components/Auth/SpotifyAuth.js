@@ -1,7 +1,5 @@
-// spotifyAuth.js (helper functions for PKCE)
-
 const clientId = process.env.REACT_APP_SPOTIFY_CLIENT_ID;
-const redirectUri = process.env.REACT_APP_REDIRECT_URI || (window.location.origin + '/spotify-callback'); // configure this in your Spotify dev console
+const redirectUri = process.env.REACT_APP_REDIRECT_URI || (window.location.origin + '/spotify-callback');
 
 const scopes = [
   'playlist-read-private',
@@ -10,15 +8,13 @@ const scopes = [
   'user-library-read',
   'user-library-modify',
 ];
-
-// Generate a random string for PKCE code verifier
+  
 function generateCodeVerifier() {
   const array = new Uint8Array(128);
   window.crypto.getRandomValues(array);
   return btoa(String.fromCharCode(...array)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-// Generate code challenge from verifier (SHA-256 base64url)
 async function generateCodeChallenge(verifier) {
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
@@ -27,13 +23,11 @@ async function generateCodeChallenge(verifier) {
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-// Save verifier for later code exchange
 function saveVerifier(verifier) {
   sessionStorage.setItem('spotifyCodeVerifier', verifier);
 }
 
-// Step 1: Redirect user to Spotify authorization URL
-export async function startSpotifyAuth() {
+export async function startSpotifyAuth(onTokenReceived) {
   const codeVerifier = generateCodeVerifier();
   saveVerifier(codeVerifier);
   const codeChallenge = await generateCodeChallenge(codeVerifier);
@@ -46,10 +40,48 @@ export async function startSpotifyAuth() {
     `&code_challenge_method=S256` +
     `&code_challenge=${encodeURIComponent(codeChallenge)}`;
 
-  window.location = authUrl; // redirects user
+  const width = 500;
+  const height = 700;
+  const left = window.screenX + (window.outerWidth - width) / 2;
+  const top = window.screenY + (window.outerHeight - height) / 2;
+
+  const popup = window.open(
+    authUrl,
+    'SpotifyAuth',
+    `width=${width},height=${height},left=${left},top=${top},resizable=no,scrollbars=yes,status=no`
+  );
+
+  if (popup) {
+    const pollTimer = window.setInterval(async () => {
+      try {
+        if (!popup || popup.closed) {
+          window.clearInterval(pollTimer);
+          console.log('Auth popup closed by user');
+          return;
+        }
+        if (popup.location.href.indexOf(redirectUri) === 0) {
+          const urlParams = new URLSearchParams(popup.location.search);
+          const code = urlParams.get('code');
+          if (code) {
+            window.clearInterval(pollTimer);
+            popup.close();
+
+            const tokenData = await fetchSpotifyToken(code);
+
+            if (onTokenReceived && typeof onTokenReceived === 'function') {
+              onTokenReceived(tokenData);
+            }
+          }
+        }
+      } catch (err) {
+        // Ignore cross-origin errors until redirect happens
+      }
+    }, 500);
+  } else {
+    alert('Failed to open authentication popup. Please allow popups for this site.');
+  }
 }
 
-// Step 2: After redirect, exchange code for token
 export async function fetchSpotifyToken(code) {
   const verifier = sessionStorage.getItem('spotifyCodeVerifier');
 
@@ -71,8 +103,7 @@ export async function fetchSpotifyToken(code) {
 
   const data = await resp.json();
 
-  // Calculate expiry timestamp ms
   data.expires_at = Date.now() + (data.expires_in * 1000);
 
-  return data; // { access_token, token_type, expires_in, refresh_token, scope, expires_at }
+  return data;
 }

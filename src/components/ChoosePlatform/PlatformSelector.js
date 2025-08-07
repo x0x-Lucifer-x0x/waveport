@@ -6,7 +6,7 @@ import './PlatformSelector.css';
 
 function PlatformSelector({ title, onSelect, showBack }) {
   const navigate = useNavigate();
-  const { spotifyToken, setSpotifyToken } = useContext(AuthContext);
+  const { setSpotifyToken } = useContext(AuthContext);
 
   // Handle Spotify OAuth callback on mount (if URL contains code)
   useEffect(() => {
@@ -18,9 +18,7 @@ function PlatformSelector({ title, onSelect, showBack }) {
         try {
           const tokenData = await fetchSpotifyToken(code);
           setSpotifyToken(tokenData);
-          // Clean URL, remove auth query params
           window.history.replaceState({}, document.title, window.location.pathname);
-          // Optionally navigate somewhere, e.g., next step
           // navigate('/select-destination'); // or keep user on current page as needed
         } catch (err) {
           console.error('Spotify token exchange failed:', err);
@@ -33,13 +31,11 @@ function PlatformSelector({ title, onSelect, showBack }) {
 
   // Click handler for Spotify button with integrated auth-check and OAuth start
   const handleSpotifyClick = () => {
-    if (spotifyToken && spotifyToken.access_token) {
-      // Already authenticated, proceed to next flow step
-      onSelect('spotify');
-      return;
-    }
-    // Not authenticated yet, start Spotify OAuth flow (redirects)
-    startSpotifyAuth();
+    startSpotifyAuth((tokenData) => {
+      setSpotifyToken(tokenData);
+      console.log('Token received, navigating...');     // save token in context/state
+      navigate('/select-destination'); // navigate to next page
+    });
   };
 
   // Handler for YouTube Music click - as usual (calls passed onSelect handler)
